@@ -1,9 +1,51 @@
-import React, { useState, useMemo } from 'react';
-import { HomeIcon, HeartPulseIcon, ShieldCheckIcon, TargetIcon, TrendingUpIcon, GraduationCapIcon, MenuIcon, XIcon, ClipboardListIcon } from './components/Icons';
+import React, { useState, useMemo, useEffect } from 'react';
+import { HomeIcon, HeartPulseIcon, ShieldCheckIcon, TargetIcon, TrendingUpIcon, GraduationCapIcon, MenuIcon, XIcon, ClipboardListIcon, FlameIcon } from './components/Icons';
 import { FinancialPlanApp } from './components/FinancialPlanApp';
 import { PasscodeScreen } from './components/PasscodeScreen';
 
 type View = 'dashboard' | 'transactions' | 'diagnosis' | 'defense' | 'attack' | 'accelerate' | 'future';
+
+const StreakTracker: React.FC = () => {
+    const [streak, setStreak] = useState(0);
+
+    useEffect(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const lastLogin = localStorage.getItem('lastLoginDate');
+        const currentStreak = parseInt(localStorage.getItem('streakCount') || '0', 10);
+
+        if (lastLogin === today) {
+            setStreak(currentStreak);
+        } else {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+            let newStreak = 1;
+            if (lastLogin === yesterdayStr) {
+                newStreak = currentStreak + 1;
+            }
+            
+            localStorage.setItem('lastLoginDate', today);
+            localStorage.setItem('streakCount', newStreak.toString());
+            setStreak(newStreak);
+        }
+    }, []);
+
+    if (streak === 0) return null;
+
+    return (
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+            <div className="bg-secondary/80 text-white rounded-lg p-3 flex items-center justify-center gap-2 text-center">
+                <FlameIcon className="w-6 h-6 text-amber-300" />
+                <div className="font-bold">
+                    <p className="text-lg">{streak} ngày</p>
+                    <p className="text-xs opacity-80">Chuỗi đăng nhập</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const App: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,18 +84,19 @@ const App: React.FC = () => {
     );
     
     const sidebarContent = (
-      <>
+      <div className="relative h-full flex flex-col">
         <div className="p-4 border-b border-green-600">
             <h1 className="text-2xl font-bold text-white text-center">Tự do Tài chính</h1>
         </div>
-        <nav className="p-4">
+        <nav className="flex-grow p-4">
             <ul>
                 {navigationItems.map(item => (
                     <NavLink key={item.id} view={item.id as View} label={item.label} icon={item.icon} />
                 ))}
             </ul>
         </nav>
-      </>
+        <StreakTracker />
+      </div>
     );
 
     if (!isAuthenticated) {

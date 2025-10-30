@@ -281,3 +281,9 @@ export const PlaneIcon = (props: React.SVGProps<SVGSVGElement>) => (
         <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1.5-1.5-3-1-4.5 0L13 6 9.2 4.2 7.5 3 2.7 4.8l1.6 1.6L2.6 9l2.1 2.1 1.6-1.6L8 11.2V16l4.5 4.5 1.5-1.5 1.5-1.5 1.8-1.8-1-1z" />
     </svg>
 );
+
+export const FlameIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+);

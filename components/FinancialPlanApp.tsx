@@ -1,5 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
+import { GoogleGenAI, GenerateContentResponse, Type } from '@google/genai';
 import { ActionTask, IncomeSource, CostCuttingTip, BudgetItem, Debt, Transaction, Category } from '../types';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { 
@@ -93,7 +93,6 @@ const InputRow: React.FC<{ label: string; name: string; value: number; onChange:
 
 
 const DiagnosisView: React.FC = () => {
-    // FIX: Add explicit types for state to prevent type widening issues with dynamic keys in handlers.
     const [incomes, setIncomes] = useState<{ [key: string]: number }>({ husband: 13000000, wife: 8000000 });
     const [fixedExpenses, setFixedExpenses] = useState<{ [key: string]: number }>({
         rent: 5200000,
@@ -428,12 +427,14 @@ const DebtModal: React.FC<{ isOpen: boolean; onClose: () => void; onSave: (debt:
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: name === 'creditor' || name === 'type' || name === 'notes' ? value : Number(value.replace(/[\.,]/g, '')) || 0 }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
     
     const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({...prev, [name]: Number(value.replace(/[\.,]/g, '')) || 0}));
+        // Allow formatting for display but store as a number
+        const numericValue = name === 'interestRate' ? parseFloat(value) : parseInt(value.replace(/[\.,]/g, ''), 10);
+        setFormData(prev => ({...prev, [name]: isNaN(numericValue) ? 0 : numericValue}));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -451,9 +452,10 @@ const DebtModal: React.FC<{ isOpen: boolean; onClose: () => void; onSave: (debt:
                             <input type="text" name="creditor" value={formData.creditor} onChange={handleChange} placeholder="Tên chủ nợ (vd: Ngân hàng A)" required className="w-full px-3 py-2 bg-gray-100 border rounded-md" />
                             <input type="text" name="type" value={formData.type} onChange={handleChange} placeholder="Loại nợ (vd: Vay tín chấp)" className="w-full px-3 py-2 bg-gray-100 border rounded-md" />
                             <input type="text" name="principal" value={formData.principal.toLocaleString('vi-VN')} onChange={handleNumericChange} placeholder="Dư nợ gốc" required className="w-full px-3 py-2 bg-gray-100 border rounded-md" />
-                            <input type="number" step="0.1" name="interestRate" value={formData.interestRate} onChange={handleChange} placeholder="Lãi suất (%/năm)" required className="w-full px-3 py-2 bg-gray-100 border rounded-md" />
+                            <input type="number" step="0.1" name="interestRate" value={formData.interestRate} onChange={handleNumericChange} placeholder="Lãi suất (%/năm)" required className="w-full px-3 py-2 bg-gray-100 border rounded-md" />
                             <input type="text" name="minPayment" value={formData.minPayment.toLocaleString('vi-VN')} onChange={handleNumericChange} placeholder="Trả tối thiểu/tháng" required className="w-full px-3 py-2 bg-gray-100 border rounded-md" />
-                             <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Ghi chú" className="w-full px-3 py-2 bg-gray-100 border rounded-md" rows={2}></textarea>
+                            <input type="number" name="dueDate" value={formData.dueDate} onChange={handleNumericChange} placeholder="Ngày đến hạn (hàng tháng)" min="1" max="31" className="w-full px-3 py-2 bg-gray-100 border rounded-md" />
+                            <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Ghi chú" className="w-full px-3 py-2 bg-gray-100 border rounded-md" rows={2}></textarea>
                         </div>
                     </div>
                     <div className="bg-background px-6 py-3 flex justify-end gap-3 rounded-b-lg">
@@ -733,6 +735,7 @@ const AccelerateView = () => {
         setIncomeIdeas([]);
 
         try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const prompt = `Dựa trên các kỹ năng sau: "${skills}", hãy đề xuất 3 ý tưởng để tạo thêm thu nhập. Với mỗi ý tưởng, cung cấp các thông tin sau:
 - Tên nguồn thu nhập (source)
 - Mô tả ngắn gọn (description)
@@ -742,36 +745,38 @@ const AccelerateView = () => {
 
 Hãy trả lời dưới dạng một JSON array, mỗi object trong array là một ý tưởng và có các key như trong ngoặc đơn ở trên.`;
             
-            const response = await fetch('/api/genai', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+            const response: GenerateContentResponse = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                source: { type: Type.STRING },
+                                description: { type: Type.STRING },
+                                skills: { type: Type.STRING },
+                                platform: { type: Type.STRING },
+                                potential: { type: Type.STRING },
+                            },
+                            required: ['source', 'description', 'skills', 'platform', 'potential']
+                        },
+                    },
                 },
-                body: JSON.stringify({ 
-                    prompt, 
-                    responseType: 'json' 
-                }),
             });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const result = await response.json();
-            
-            if (result.success && result.data) {
-                // FIX: Add a type guard to ensure result.data is an array before calling .map
-                if (Array.isArray(result.data)) {
-                    setIncomeIdeas(result.data.map((idea: Omit<IncomeSource, 'id'>, index: number) => ({ ...idea, id: Date.now() + index })));
-                } else {
-                    throw new Error('Invalid response format from AI service');
+            const text = response.text;
+            if (text) {
+                const parsedIdeas = JSON.parse(text);
+                // FIX: Add a type guard to ensure parsedIdeas is an array before calling .map, as JSON.parse can return any value type.
+                if (Array.isArray(parsedIdeas)) {
+                    setIncomeIdeas(parsedIdeas.map((idea: Omit<IncomeSource, 'id'>, index: number) => ({ ...idea, id: Date.now() + index })));
                 }
-            } else {
-                throw new Error(result.error || 'Unknown error from AI service');
             }
-        } catch (e: any) {
-            console.error('Error fetching income ideas:', e);
-            setError(e.message || 'Đã xảy ra lỗi khi lấy ý tưởng. Vui lòng thử lại.');
+        } catch (e) {
+            console.error(e);
+            setError('Đã xảy ra lỗi khi lấy ý tưởng. Vui lòng thử lại.');
         } finally {
             setLoading(false);
         }
